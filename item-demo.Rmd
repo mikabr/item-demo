@@ -1,0 +1,616 @@
+---
+title: "Demographic effects on the composition of children's<br> early vocabulary"
+author: "Mika Braginsky, Virginia Marchman, Michael Frank"
+output:
+  ioslides_presentation:
+    css: styles.css
+    incremental: true
+    smaller: true
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(ggthemes)
+library(ggstance)
+library(ggrepel)
+library(langcog)
+
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE, warning = FALSE,
+                      message = FALSE)
+options(DT.options = list(searching = FALSE, lengthChange = FALSE))
+
+.font <- "Source Sans Pro"
+theme_set(theme_mikabr(base_family = .font))
+theme_update(plot.margin = margin(0, 0, 2, 0, "pt"),
+             legend.margin = margin(0, 0, 0, 0, "pt"))
+.grey <- "grey70"
+.refline <- "dotted"
+
+.scale_colour_discrete <- ggthemes::scale_colour_ptol
+.scale_color_discrete <- .scale_colour_discrete
+.scale_fill_discrete <- ggthemes::scale_fill_ptol
+
+label_caps <- as_labeller(function(value) {
+  paste0(toupper(substr(value, 1, 1)), substr(value, 2, nchar(value))) %>%
+    str_replace_all("_", " ")
+})
+
+dt <- function(data, cnames = label_caps(colnames(data)), ...) {
+  DT::datatable(
+    data = data,
+    rownames = FALSE,
+    colnames = cnames,
+    ...
+  )
+}
+```
+
+```{r load-data, include=FALSE}
+load("data/demo_props.Rds")
+plot_demo_props <- demo_props %>%
+  unnest() %>%
+  mutate(prop = num_true / (num_true + num_false)) %>%
+  split(.$demo)
+
+demo_labels <- list("sex" = "Sex",
+                    "birth_order" = "Birth order",
+                    "mom_ed" = "Maternal education")
+
+demo_coefs <- feather::read_feather("data/demo_coefs.feather")
+
+demo_coefs_coded <- demo_coefs %>%
+  filter(!(term %in% c("(Intercept)", "age")), measure == "produces") %>%
+  mutate(estimate = if_else(term %in% c("sexMale", "birth_order1", "birth_order2"),
+                            -estimate, estimate),
+         exp_estimate = exp(estimate),
+         ci_lower = exp_estimate - qnorm(.975) * std.error,
+         ci_upper = exp_estimate + qnorm(.975) * std.error,
+         term = term %>%
+           fct_recode("Female : Male" = "sexMale",
+                      "First : Second" = "birth_order1",
+                      "Second : Third+" = "birth_order2",
+                      "Secondary : Below Secondary" = "mom_ed1",
+                      "College and Above : Secondary" = "mom_ed2",
+                      NULL = "mom_edCollege and Above"),
+         demo = demo %>%
+           fct_recode("Birth order" = "birth_order",
+                      "Maternal education" = "mom_ed",
+                      "Sex" = "sex")) %>%
+  filter(!is.na(term))
+
+terms <- unique(demo_coefs_coded$term)
+term_colours <- ptol_pal()(length(terms)) %>% set_names(terms)
+
+demo_ranef <- feather::read_feather("data/demo_ranef.feather")
+
+demo_ranef_coded <- demo_ranef %>%
+  gather(term, estimate, -language, -measure, -demo, -definition) %>%
+  filter(!is.na(estimate), measure == "produces") %>%
+  filter(!(term %in% c("(Intercept)", "age"))) %>%
+  mutate(estimate = if_else(term %in% c("sexMale", "birth_order1", "birth_order2"),
+                            -estimate, estimate),
+         exp_estimate = exp(estimate),
+         term = term %>%
+           fct_recode("Female : Male" = "sexMale",
+                      "First : Second" = "birth_order1",
+                      "Second : Third+" = "birth_order2",
+                      "Secondary : Below Secondary" = "mom_ed1",
+                      "College and Above : Secondary" = "mom_ed2",
+                      NULL = "mom_edCollege and Above"),
+         demo = demo %>%
+           fct_relevel("sex", "birth_order", "mom_ed") %>%
+           fct_recode("Birth order" = "birth_order",
+                      "Maternal education" = "mom_ed",
+                      "Sex" = "sex")) %>%
+  filter(!is.na(term))
+```
+
+---
+
+<img src="images/baby1.png" style="width: 100%;">
+
+---
+
+<img src="images/baby2.png" style="width: 100%;">
+
+## Overview
+
+- Girls know more words than boys<br>
+  <div class="grey small">Eriksson et al, 2012; Frank et al, 2016</div>
+- First-born children know more words than later-born children<br>
+  <div class="grey small">Goldfield & Reznick, 1990</div>
+- Children from higher SES families know words<br>
+  <div class="grey small">Fernald, Marchman, & Weisleder, 2013</div>
+
+<br>
+
+- Children from higher SES families receive more language input<br>
+  <div class="grey small">Hart & Risley, 1995</div>
+
+<br>
+
+- Vocabulary at 25 months predicts cognitive and linguistic abilities at 8 years<br>
+  <div class="grey small">Marchman & Fernald, 2008</div>
+
+<div class="notes">
+median productive vocabulary at 24 months in english
+- girls 368.7, boys 272.4 (1.4 times larger) [wordbank]
+- first 355.3, second 297.6 (1.2 times larger) [wordbank]
+- higher SES 441.5, lower 287.9 (1.5 times larger) [fernald2013]
+
+lowest SES group less than a third of words of highest SES group
+</div>
+
+## {.flexbox .vcenter .build}
+
+Do individual words carry demographic signal?
+
+```{r plot-items, fig.height=2.5}
+plot_items <- c("brother", "dog", "green")
+
+bo_props <- demo_props %>%
+  filter(language == "English (American)", measure == "produces",
+         demo == "birth_order") %>%
+  pull(data) %>%
+  .[[1]] %>%
+  filter(definition %in% plot_items) %>%
+  mutate(total = num_true + num_false,
+         prop = num_true / total)
+
+overall_props <- bo_props %>%
+  group_by(unscaled_age, definition) %>%
+  summarise(num_true = sum(num_true), total = sum(total), prop = num_true / total)
+
+ggplot(overall_props, aes(x = unscaled_age, y = prop)) +
+  facet_wrap(~definition, nrow = 1) +
+  coord_fixed(ratio = 22) +
+  geom_smooth(aes(weight = total), se = FALSE, size = 0.8, method = "glm",
+              method.args = list(family = "binomial"), colour = "darkgrey") +
+  labs(x = "Age (months)", y = "Proportion produces") +
+  lims(y = c(0, 1))
+```
+
+```{r plot-items-bo, fig.height=3}
+ggplot(bo_props, aes(x = unscaled_age, y = prop, colour = birth_order)) +
+  facet_wrap(~definition, nrow = 1) +
+  coord_fixed(ratio = 22) +
+  geom_smooth(aes(weight = total), se = FALSE, size = 0.8, method = "glm",
+              method.args = list(family = "binomial")) +
+  .scale_colour_discrete() +
+  labs(x = "Age (months)", y = "Proportion produces",
+       colour = "Birth order") +
+  lims(y = c(0, 1)) +
+  theme(legend.position = "top")
+```
+
+## Data {.build}
+
+<div class="columns-2">
+<img src="images/cdi.jpg" style="height: 100%; width: 100%">
+<div class="centered">
+<img src="images/walrus.png" style="width: 30%;">
+<img src="images/wordbank.png" style="width: 100%;">
+</div>
+</div>
+
+## Data
+
+- Sex
+  - Assigned __female__ at birth
+  - Assigned __male__ at birth
+- Birth order
+  - __First__-born
+  - __Second__-born
+  - __Third__-born or later-born
+- Maternal education
+  - __Below Secondary__
+  - __Secondary__ (~high school degree)
+  - __College and Above__ (~college degree)
+
+<div class="notes">
+- sex is assigned at birth -- not making no claims about whether "sex" effects are related to socialization, genetics, etc. for convenience, saying "female" and "girls" for "assigned female at birth" and "male" and "boys" for "assigned male at birth"
+- birth order is straightforward
+- maternal education is proxy for SES (studies show high correlation). hard problem of mapping across educational systems...
+</div>
+
+```{r sample-size}
+sample_sizes <- demo_props %>%
+  filter(measure == "produces") %>%
+  mutate(demo = demo %>%
+           fct_recode("Sex" = "sex",
+                      "Birth order" = "birth_order",
+                      "Maternal education" = "mom_ed")) %>%
+  right_join(demo_coefs_coded %>% distinct(language, demo)) %>%
+  mutate(ns = map(data, function(df) {
+    df %>%
+      mutate(total = num_true + num_false) %>%
+             # num_items = n_distinct(definition)) %>%
+      distinct(unscaled_age, total, sex, birth_order, mom_ed) %>%
+      group_by(sex, birth_order, mom_ed) %>%
+      summarise(n = sum(total),
+                min_age = min(unscaled_age), max_age = max(unscaled_age)) %>%
+      gather(demo, level, -n, -min_age, -max_age) %>%
+      filter(!is.na(level)) %>%
+      select(-demo)
+  })) %>%
+  select(-data, -measure) %>%
+  unnest() %>%
+  mutate(level = level %>% fct_inorder())
+
+demo_levels <- unique(sample_sizes$level)
+level_colours <- set_names(ptol_pal()(length(demo_levels)), demo_levels)
+
+sample_size_plot <- function(plot_demo) {
+  demo_sizes <- sample_sizes %>%
+    filter(demo == plot_demo) %>%
+    group_by(language) %>%
+    mutate(language_n = sum(n),
+           ages = paste(min(min_age), max(max_age), sep = "–")) %>%
+    ungroup() %>%
+    mutate(language = fct_reorder(language, language_n))
+  ggplot(demo_sizes, aes(x = language, y = n, fill = level)) +
+    coord_flip() +
+    geom_col(position = position_stack(reverse = TRUE)) +
+    geom_text(aes(label = ages, y = max(demo_sizes$language_n) * 1.1),
+              family = .font, hjust = 1, colour = .grey, size = 4) +
+    scale_fill_manual(values = level_colours, name = plot_demo) +
+    scale_y_continuous(expand = expand_scale(mult = c(0, 0.02))) +
+    guides(fill = guide_legend()) +
+    labs(x = "", y = "Number of children") +
+    theme(legend.position = "top",
+          legend.margin = margin(t = 0, r = 0, b = -0.35, l = 0, unit = "cm"),
+          legend.justification = c(0, 1),
+          legend.title = element_text(face = "bold",
+                                      margin = unit(c(0, 0, -0.15, 0), "cm")),
+          plot.margin = unit(c(0.3, 0.3, 0.3, -0.3), "cm"))
+}
+```
+
+## Data
+
+```{r sample-sex, dependson="sample-size", fig.height=5}
+sample_size_plot("Sex")
+```
+
+<div class="notes">
+number of children is technically number of CDI administrations (includes longitudinal data)
+</div>
+
+## Data
+
+```{r sample-bo, dependson="sample-size"}
+sample_size_plot("Birth order")
+```
+
+## Data
+
+```{r sample-momed, dependson="sample-size"}
+sample_size_plot("Maternal education")
+```
+
+<div class="notes">
+TODO: mapping seems problematic
+</div>
+
+---
+
+```{r model-test}
+# load("data/English (American)_produces_mom_ed.Rds")
+# mf <- model@frame
+# mf %>% select(birth_order, definition) %>% distinct() %>% head()
+# unique(mf$birth_order)
+# nd <- cross_df(list(birth_order = c("First", "Second", "Third+"),
+#                                 age = 0,
+#                                 definition = c("brother", "sister")))
+#   # mutate(.fitted = predict(model, type = "response", newdata = .))
+# augment(model, newdata = nd, type.predict = "response")
+# broom.mixed::tidy(model, conf.int = TRUE, effects = "fixed", exponentiate = TRUE) %>%
+  # select(term, estimate, conf.low, conf.high)
+# demo_coefs_coded %>% filter(language == "English (American)",
+#                             measure == "produces",
+#                             demo == "Birth order") %>%
+#   select(term, estimate, ci_lower, ci_upper)
+```
+
+## Analysis {.build}
+
+For a language and demographic:
+```
+produces ~ age + birth_order + (age + birth_order | item)
+```
+
+- fixed effect for each demographic in each language
+- random effect for each item for each demographic in each language
+- coding scheme gives difference between adjacent levels
+
+```{r demo-info}
+demo_ranef_coded %>%
+  group_by(language, demo) %>%
+  summarise(num_items = n_distinct(definition),
+            levels = paste(unique(term), collapse = "<br>")) %>%
+  group_by(demo, levels) %>%
+  summarise(languages = n_distinct(language),
+            items = paste(range(num_items), collapse = "–")) %>%
+  select(demo, languages, items, levels) %>%
+  dt(options = list(dom = "t", ordering = FALSE), escape = FALSE,
+     class = "cell-border", cnames = c("", "Languages", "Items", "Effects"))
+```
+
+<div class="notes">
+- separate model for each language and demographic factor
+- mixed-effects logistic regression
+- backward difference coding as contrasts
+- exponentiated slopes, so interpretable as probability ratio
+</div>
+
+## Results
+
+```{r coef-plot}
+plot_demo_coefs <- function(plot_demo, show_data = TRUE) {
+  plot_data <- demo_coefs_coded %>%
+    filter(demo == plot_demo) %>%
+    arrange(term, abs(estimate)) %>%
+    mutate(language = fct_inorder(language))
+  plt <- ggplot(plot_data, aes(x = exp_estimate, y = language, colour = term)) +
+    scale_colour_manual(values = term_colours) +
+    labs(x = "Probability ratio", y = "", colour = plot_demo) +
+    theme(legend.position = "top", legend.direction = "vertical",
+          legend.margin = margin(t = 0, r = 0, b = -0.35, l = 0, unit = "cm"),
+          legend.justification = c(0, 1),
+          legend.title = element_text(face = "bold",
+                                      margin = unit(c(0, 0, -0.15, 0), "cm")),
+          plot.margin = unit(c(0.3, 0.3, 0.3, -0.3), "cm"),
+          panel.grid.major.y = element_line(colour = "grey92", size = 0.2))
+  if (show_data) plt <- plt +
+    geom_pointrangeh(aes(xmin = ci_lower, xmax = ci_upper), fatten = 3,
+                     position = position_dodgev(height = 0.2))
+  else plt <- plt +
+    geom_pointrangeh(aes(xmin = ci_lower, xmax = ci_upper), fatten = 3,
+                     position = position_dodgev(height = 0.2), alpha = 0) +
+    guides(colour = guide_legend(override.aes = list(alpha = 1)))
+  return(plt)
+}
+```
+
+```{r coef-sex-prep, dependson="plot-coef", fig.height=5}
+plot_demo_coefs("Sex", show_data = FALSE)
+```
+
+## Results
+
+```{r coef-sex, dependson="plot-coef", fig.height=5}
+plot_demo_coefs("Sex")
+```
+
+<div class="notes">
+- 95% confidence intervals
+- equally likely would be 1, so languages' effects are significant and girl-advantaged
+</div>
+
+## Results
+
+```{r coef-bo-prep, dependson="plot-coef"}
+plot_demo_coefs("Birth order", show_data = FALSE)
+```
+
+## Results
+
+```{r coef-bo, dependson="plot-coef"}
+plot_demo_coefs("Birth order")
+```
+
+<div class="notes">
+- all languages favor earlier birth order, first over second and second over later
+- relative size of one to the other varies a lot
+</div>
+
+## Results
+
+```{r coef-momed-prep, dependson="coef-plot"}
+plot_demo_coefs("Maternal education", show_data = FALSE)
+```
+
+## Results
+
+```{r coef-momed, dependson="coef-plot"}
+plot_demo_coefs("Maternal education")
+```
+
+<div class="notes">
+- all languages favor more maternal education
+- interpretation of variation tricky in light of hard mapping problem
+</div>
+
+## Results
+
+```{r ranef-plot}
+num_extremes <- 5
+
+plot_demo_ranef_lang <- function(plot_language, plot_measure, plot_demo, binwidth = 0.03) {
+  
+  demo_data <- demo_ranef_coded %>%
+    filter(language == plot_language, measure == plot_measure,
+           demo == plot_demo) %>%
+    mutate(panel = paste(demo, term, sep = "\n"))
+  
+  demo_labelled <- bind_rows(
+    demo_data %>% group_by(language, term) %>% top_n(num_extremes, estimate),
+    demo_data %>% group_by(language, term) %>% top_n(num_extremes, -estimate)
+  )
+  
+  dotsize <- 0.7
+  stackratio <- 1.5
+
+  plt <- ggplot(demo_data, aes(x = exp_estimate, colour = term, fill = term)) +
+    facet_wrap(~panel) +
+    geom_dotplot(method = "histodot", alpha = 0.4, binwidth = binwidth,
+                 dotsize = dotsize, stackratio = stackratio) +
+    geom_label_repel(aes(label = definition, y = 0, colour = term),
+                     data = demo_labelled,
+                     segment.size = 0.3,
+                     label.padding = 0.1,
+                     point.padding = unit(0.15, "lines"),
+                     arrow = arrow(length = unit(0.01, "npc")),
+                     nudge_y = 0.2,
+                     force = 2,
+                     family = .font, size = 2.5, fill = "white") +
+    scale_colour_manual(values = term_colours, guide = FALSE) +
+    scale_fill_manual(values = term_colours, guide = FALSE) +
+    labs(x = "Probability ratio (random effect)", y = "Number of of words") +
+    theme_mikabr(base_size = 12) +
+    theme(strip.text = element_text(margin = margin(b = 0.2, unit = "cm")),
+          panel.spacing.y = unit(0.5, "cm"))
+
+  # TODO: fix counts  
+  gb <- ggplot_build(plt)
+  max_count <- max(gb$data[[1]]$count)
+  step <- 20
+  labels <- c(1, seq(step, max_count, by = step))
+
+  # max_count <- round(max(gb$data[[1]]$count), -1)
+  # labels <- floor(c(1, seq(step, max_count, by = step)))
+
+  ratio <- max_count * binwidth * dotsize * stackratio
+  plt +
+    coord_fixed(ratio = ratio) +
+    scale_y_continuous(labels = labels,
+                       breaks = seq(0, 1, length.out = length(labels)),
+                       expand = c(0.01, 0, 0.04, 0))
+}
+```
+
+```{r ranef-sex, dependson="ranef-plot"}
+plot_demo_ranef_lang("English (American)", "produces", "Sex")
+```
+
+<div class="notes">
+- showing just english, random effect for each word, distribution with 4 most outlying words labelled
+- gender-associated toys and clothing, genitals
+</div>
+
+## Results
+
+```{r ranef-bo, dependson="ranef-plot"}
+plot_demo_ranef_lang("English (American)", "produces", "Birth order", 0.015)
+```
+
+<div class="notes">
+- colors and animals most earlier-biased
+- sibling, sweets, "hate" most later-biased
+</div>
+
+## Results
+
+```{r ranef-momed, dependson="ranef-plot"}
+plot_demo_ranef_lang("English (American)", "produces", "Maternal education")
+```
+
+<div class="notes">
+- animals most higher education biased, also babysitter's name
+- sweets more lower education biased, also "walker" (elderly relatives?)
+- possible confound between birth order and SES if lower-SES families tend to have more later-born children
+</div>
+
+## Results
+
+__Sex__
+
+```{r tables}
+tab_thres <- log(1.5)
+
+demo_table <- function(table_demo) {
+  demo_ranef_coded %>%
+    filter(demo == table_demo) %>%
+    group_by(language, definition) %>%
+    filter(any(abs(estimate) > tab_thres)) %>%
+    ungroup() %>%
+    select(language, item = definition, term, ratio = exp_estimate) %>%
+    mutate(ratio = signif(ratio, 2)) %>%
+    spread(term, ratio) %>%
+    dt()
+}
+```
+
+```{r tab-sex, dependson="tables"}
+demo_table("Sex")
+```
+
+<div class="notes">
+- filtered to words that are 1.5 times more likely one way or the other
+- 오빠 = older brother (female speaker)
+- vestido = dress
+- 언니 = older sister (female speaker)
+- kjole = dress
+- Totós (elásticos de cabelo) = scrunchies
+- strømpebukser = tights
+- Gancho = ?
+- kjole = dress
+- Pipi = ?
+- Saia = skirt
+
+- 형 = older brother (male speaker)
+- Pilinha/Pila/Pilau = ?
+- 小ㄐㄐ/小鳥(生殖器) = [genitals]
+- 고추 = ? (pepper?)
+- brrr (bil-lyd) = vroom vroom
+- Helicóptero = helicopter
+- formula = ?
+
+</div>
+
+## Results
+
+__Birth order__
+
+```{r tab-bo, dependson="tables"}
+demo_table("Birth order")
+```
+
+<div class="notes">
+- earlier-biased: mostly colors, some animals
+
+- nougatti = nougat
+- skole = school
+- godteri = candy
+- tyggegummi = gum
+- bror = brother
+- søster = sister
+- hermana = sister
+- 書包 = schoolbag
+</div>
+
+
+## Results
+
+__Maternal education__
+
+```{r tab-momed, dependson="tables"}
+demo_table("Maternal education")
+```
+
+<div class="notes">
+- earlier-biased: animals!
+- later-biased: gum, candy, soda, etc
+</div>
+
+## Takeaways {.build}
+
+- Individual words are learned differentially by sex, birth order, maternal education
+- Avoid bias in test design by excluding demographically-linked items
+- Demographic differences in vocabulary size emerge from both quantity of speech and specific content differences
+
+<hr>
+
+<div class="centered small">
+Part of larger work on variability and consistency in language learning<br>
+[langcog.github.io/wordbank-book](https://langcog.github.io/wordbank-book/)
+
+All data and code available at<br>
+[github.com/langcog/wordbank-book](https://github.com/mikabr/item-demo)
+
+<br>
+<img src="images/mike.jpeg" style="height: 100px;">
+<img src="images/walrus.png" style="height: 100px;">
+<img src="images/virginia.jpeg" style="height: 100px;">
+
+</div>
