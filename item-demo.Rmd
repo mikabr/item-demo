@@ -134,9 +134,12 @@ demo_ranef_coded <- demo_ranef %>%
 
 <div class="notes">
 median productive vocabulary at 24 months in english
-- girls 368.7, boys 272.4 (1.4 times larger) [wordbank]
-- first 355.3, second 297.6 (1.2 times larger) [wordbank]
-- higher SES 441.5, lower 287.9 (1.5 times larger) [fernald2013]
+
+girls 368.7, boys 272.4 (1.4 times larger) [wordbank]
+
+first 355.3, second 297.6 (1.2 times larger) [wordbank]
+
+higher SES 441.5, lower 287.9 (1.5 times larger) [fernald2013]
 
 lowest SES group less than a third of words of highest SES group
 </div>
@@ -208,9 +211,11 @@ ggplot(bo_props, aes(x = unscaled_age, y = prop, colour = birth_order)) +
   - __College and Above__ (~college degree)
 
 <div class="notes">
-- sex is assigned at birth -- not making no claims about whether "sex" effects are related to socialization, genetics, etc. for convenience, saying "female" and "girls" for "assigned female at birth" and "male" and "boys" for "assigned male at birth"
-- birth order is straightforward
-- maternal education is proxy for SES (studies show high correlation). hard problem of mapping across educational systems...
+sex is assigned at birth -- not making no claims about whether "sex" effects are related to socialization, genetics, etc. for convenience, saying "female" and "girls" for "assigned female at birth" and "male" and "boys" for "assigned male at birth"
+
+birth order is straightforward
+
+maternal education is proxy for SES (studies show high correlation). hard problem of mapping across educational systems...
 </div>
 
 ```{r sample-size}
@@ -337,10 +342,13 @@ demo_ranef_coded %>%
 ```
 
 <div class="notes">
-- separate model for each language and demographic factor
-- mixed-effects logistic regression
-- backward difference coding as contrasts
-- exponentiated slopes, so interpretable as probability ratio
+separate model for each language and demographic factor
+
+mixed-effects logistic regression
+
+backward difference coding as contrasts
+
+exponentiated slopes, so interpretable as probability ratio
 </div>
 
 ## Results
@@ -383,8 +391,9 @@ plot_demo_coefs("Sex")
 ```
 
 <div class="notes">
-- 95% confidence intervals
-- equally likely would be 1, so languages' effects are significant and girl-advantaged
+95% confidence intervals
+
+equally likely would be 1, so languages' effects are significant and girl-advantaged
 </div>
 
 ## Results
@@ -400,8 +409,9 @@ plot_demo_coefs("Birth order")
 ```
 
 <div class="notes">
-- all languages favor earlier birth order, first over second and second over later
-- relative size of one to the other varies a lot
+all languages favor earlier birth order, first over second and second over later
+
+relative size of one to the other varies a lot
 </div>
 
 ## Results
@@ -417,8 +427,9 @@ plot_demo_coefs("Maternal education")
 ```
 
 <div class="notes">
-- all languages favor more maternal education
-- interpretation of variation tricky in light of hard mapping problem
+all languages favor more maternal education
+
+interpretation of variation tricky in light of hard mapping problem
 </div>
 
 ## Results
@@ -484,8 +495,9 @@ plot_demo_ranef_lang("English (American)", "produces", "Sex")
 ```
 
 <div class="notes">
-- showing just english, random effect for each word, distribution with 4 most outlying words labelled
-- gender-associated toys and clothing, genitals
+showing just english, random effect for each word, distribution with 4 most outlying words labelled
+
+gender-associated toys and clothing, genitals
 </div>
 
 ## Results
@@ -495,8 +507,9 @@ plot_demo_ranef_lang("English (American)", "produces", "Birth order", 0.015)
 ```
 
 <div class="notes">
-- colors and animals most earlier-biased
-- sibling, sweets, "hate" most later-biased
+colors and animals most earlier-biased
+
+sibling, sweets, "hate" most later-biased
 </div>
 
 ## Results
@@ -506,9 +519,11 @@ plot_demo_ranef_lang("English (American)", "produces", "Maternal education")
 ```
 
 <div class="notes">
-- animals most higher education biased, also babysitter's name
-- sweets more lower education biased, also "walker" (elderly relatives?)
-- possible confound between birth order and SES if lower-SES families tend to have more later-born children
+animals most higher education biased, also babysitter's name
+
+sweets more lower education biased, also "walker" (elderly relatives?)
+
+possible confound between birth order and SES if lower-SES families tend to have more later-born children
 </div>
 
 ## Results
@@ -536,25 +551,41 @@ demo_table("Sex")
 ```
 
 <div class="notes">
-- filtered to words that are 1.5 times more likely one way or the other
-- 오빠 = older brother (female speaker)
-- vestido = dress
-- 언니 = older sister (female speaker)
-- kjole = dress
-- Totós (elásticos de cabelo) = scrunchies
-- strømpebukser = tights
-- Gancho = ?
-- kjole = dress
-- Pipi = ?
-- Saia = skirt
+filtered to words that are 1.5 times more likely one way or the other
 
-- 형 = older brother (male speaker)
-- Pilinha/Pila/Pilau = ?
-- 小ㄐㄐ/小鳥(生殖器) = [genitals]
-- 고추 = ? (pepper?)
-- brrr (bil-lyd) = vroom vroom
-- Helicóptero = helicopter
-- formula = ?
+오빠 = older brother (female speaker)
+
+vestido = dress
+
+언니 = older sister (female speaker)
+
+kjole = dress
+
+Totós (elásticos de cabelo) = scrunchies
+
+strømpebukser = tights
+
+Gancho = ?
+
+kjole = dress
+
+Pipi = ?
+
+Saia = skirt
+
+
+형 = older brother (male speaker)
+
+Pilinha/Pila/Pilau = ?
+小ㄐㄐ/小鳥(生殖器) = [genitals]
+
+고추 = ? (pepper?)
+
+brrr (bil-lyd) = vroom vroom
+
+Helicóptero = helicopter
+
+formula = ?
 
 </div>
 
@@ -567,16 +598,23 @@ demo_table("Birth order")
 ```
 
 <div class="notes">
-- earlier-biased: mostly colors, some animals
+earlier-biased: mostly colors, some animals
 
-- nougatti = nougat
-- skole = school
-- godteri = candy
-- tyggegummi = gum
-- bror = brother
-- søster = sister
-- hermana = sister
-- 書包 = schoolbag
+nougatti = nougat
+
+skole = school
+
+godteri = candy
+
+tyggegummi = gum
+
+bror = brother
+
+søster = sister
+
+hermana = sister
+
+書包 = schoolbag
 </div>
 
 
@@ -589,8 +627,9 @@ demo_table("Maternal education")
 ```
 
 <div class="notes">
-- earlier-biased: animals!
-- later-biased: gum, candy, soda, etc
+earlier-biased: animals!
+
+later-biased: gum, candy, soda, etc
 </div>
 
 ## Takeaways {.build}
